@@ -11,8 +11,10 @@ let conversationHistory = [];
 let isListening = false;
 let isSpeaking = false;
 let messageCount = 0;
-let synth = window.speechSynthesis;
+let synth = window.speechSynthesis; // Keep as fallback
 let recognition = null;
+let audioQueue = [];
+let isPlayingAudio = false;
 
 // --- DOM REFS ---
 const chatMessages = document.getElementById("chatMessages");
@@ -145,22 +147,40 @@ async function sendMessage() {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let fullText = "";
+    let sentenceBuffer = "";
 
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        // Speak any remaining text that didn't end with punctuation
+        if (sentenceBuffer.trim().length > 0) {
+            speak(sentenceBuffer.trim());
+        }
+        break;
+      }
+      
       const chunk = decoder.decode(value);
       const lines = chunk.split("\n");
       for (const line of lines) {
         if (line.startsWith("data: ")) {
           const data = line.slice(6);
-          if (data === "[DONE]") break;
+          if (data === "[DONE]") continue;
           try {
             const parsed = JSON.parse(data);
             if (parsed.content) {
               fullText += parsed.content;
+              sentenceBuffer += parsed.content;
               textEl.innerHTML = escapeHtml(fullText);
               chatMessages.scrollTop = chatMessages.scrollHeight;
+              
+              // Check if we completed a sentence (basic punctuation detection)
+              if (/[.!?]\s$/.test(sentenceBuffer) || /[.!?]$/.test(parsed.content)) {
+                  // Only speak if it's substantial enough
+                  if (sentenceBuffer.trim().length > 2) {
+                      speak(sentenceBuffer.trim());
+                      sentenceBuffer = "";
+                  }
+              }
             }
           } catch {}
         }
@@ -168,9 +188,6 @@ async function sendMessage() {
     }
 
     conversationHistory.push({ role: "assistant", content: fullText });
-    
-    // Speak the response
-    speak(fullText);
 
   } catch (err) {
     typingEl.remove();
@@ -183,22 +200,69 @@ async function sendMessage() {
 }
 
 // --- SPEECH SYNTHESIS (TTS) ---
-function speak(text) {
-  if (!synth) return;
-  synth.cancel();
-  const utter = new SpeechSynthesisUtterance(text);
+async function speak(text) {
+  if (!text.trim()) return;
   
-  // Pick a female voice if available
+  try {
+     const res = await fetch(BACKEND_URL + "/tts", {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({ text: text })
+     });
+     
+     if (res.ok) {
+         const blob = await res.blob();
+         const audioUrl = URL.createObjectURL(blob);
+         audioQueue.push(audioUrl);
+         playNextAudio();
+     } else {
+         throw new Error("TTS failed");
+     }
+  } catch (err) {
+      console.warn("ElevenLabs TTS failed, falling back to browser voice", err);
+      fallbackSpeak(text);
+  }
+}
+
+async function playNextAudio() {
+    if (audioQueue.length === 0 || isPlayingAudio) return;
+    
+    isPlayingAudio = true;
+    const url = audioQueue.shift();
+    const audio = new Audio(url);
+    
+    // Visualizer active while playing
+    voiceViz.classList.add("active");
+    
+    audio.onended = () => {
+        isPlayingAudio = false;
+        voiceViz.classList.remove("active");
+        playNextAudio();
+    };
+    
+    audio.onerror = () => {
+        isPlayingAudio = false;
+        voiceViz.classList.remove("active");
+        playNextAudio();
+    };
+    
+    await audio.play().catch(e => {
+        console.error("Audio playback prevented:", e);
+        isPlayingAudio = false;
+        playNextAudio();
+    });
+}
+
+function fallbackSpeak(text) {
+  if (!synth) return;
+  const utter = new SpeechSynthesisUtterance(text);
   const voices = synth.getVoices();
   const preferred = voices.find(v =>
     v.name.includes("Female") || v.name.includes("Samantha") ||
     v.name.includes("Zira") || v.name.includes("Google UK English Female")
   );
   if (preferred) utter.voice = preferred;
-  
   utter.rate = 1.05;
-  utter.pitch = 1.0;
-  utter.volume = 1.0;
   synth.speak(utter);
 }
 
