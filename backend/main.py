@@ -90,10 +90,11 @@ async def chat(request: ChatRequest):
 
 @app.post("/tts")
 async def generate_speech(request: TTSRequest):
+    from fastapi import Response
     if not ELEVENLABS_API_KEY:
         raise HTTPException(status_code=503, detail="ELEVENLABS_API_KEY not configured on the server.")
         
-    url = "https://api.elevenlabs.io/v1/text-to-speech/EXAVITQu4vr4xnSDxMaL/stream" # Rachel voice (professional US female)
+    url = "https://api.elevenlabs.io/v1/text-to-speech/EXAVITQu4vr4xnSDxMaL" # Rachel voice
     
     headers = {
         "Accept": "audio/mpeg",
@@ -110,16 +111,10 @@ async def generate_speech(request: TTSRequest):
         }
     }
     
-    async def audio_stream():
-        async with httpx.AsyncClient() as http_client:
-            async with http_client.stream("POST", url, json=data, headers=headers) as response:
-                if response.status_code != 200:
-                    error_text = await response.aread()
-                    print(f"ElevenLabs Error: {error_text}")
-                    yield b""
-                    return
-                async for chunk in response.aiter_bytes():
-                    if chunk:
-                        yield chunk
-
-    return StreamingResponse(audio_stream(), media_type="audio/mpeg")
+    async with httpx.AsyncClient() as client:
+        response = await client.post(url, json=data, headers=headers, timeout=20.0)
+        if response.status_code != 200:
+            print("ElevenLabs Error:", response.text)
+            raise HTTPException(status_code=response.status_code, detail="TTS Backend failed")
+            
+        return Response(content=response.content, media_type="audio/mpeg")
