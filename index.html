@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FRIDAY — Stark Industries AI</title>
+  <meta name="description" content="FRIDAY — Your personal AI assistant built by Stark Industries. Powered by advanced Llama intelligence." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Background HUD Grid -->
+  <div class="hud-grid"></div>
+  <div class="scanline"></div>
+
+  <!-- Top Status Bar -->
+  <header class="status-bar">
+    <div class="status-left">
+      <span class="brand">STARK INDUSTRIES</span>
+      <span class="divider">|</span>
+      <span class="version">FRIDAY AI v3.0</span>
+    </div>
+    <div class="status-right">
+      <div class="status-indicator" id="statusDot"></div>
+      <span id="statusText">INITIALIZING</span>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="main-container">
+    <!-- Left Panel: Friday Avatar -->
+    <aside class="left-panel">
+      <div class="avatar-container">
+        <div class="avatar-ring outer-ring"></div>
+        <div class="avatar-ring mid-ring"></div>
+        <div class="avatar-ring inner-ring"></div>
+        <div class="arc-reactor">
+          <div class="reactor-core"></div>
+          <div class="reactor-glow"></div>
+        </div>
+      </div>
+      <div class="friday-name">F.R.I.D.A.Y</div>
+      <div class="friday-subtitle">Female Replacement Intelligent<br>Digital Assistant Youth</div>
+
+      <div class="stats-panel">
+        <div class="stat-row">
+          <span class="stat-label">STATUS</span>
+          <span class="stat-value" id="statStatus">ONLINE</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">MODEL</span>
+          <span class="stat-value">LLAMA 3.3</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">MESSAGES</span>
+          <span class="stat-value" id="statMessages">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">MODE</span>
+          <span class="stat-value" id="statMode">TEXT</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Right Panel: Chat -->
+    <section class="chat-panel">
+      <div class="chat-header">
+        <h1>ACTIVE SESSION — CLEARANCE LEVEL ALPHA</h1>
+        <button class="clear-btn" id="clearBtn" title="Clear conversation">CLEAR SESSION</button>
+      </div>
+
+      <!-- Messages -->
+      <div class="chat-messages" id="chatMessages">
+        <div class="message friday-msg boot-message">
+          <div class="msg-avatar">F</div>
+          <div class="msg-content">
+            <div class="msg-header">FRIDAY <span class="msg-time" id="bootTime"></span></div>
+            <div class="msg-text">
+              Good day, Sir. All systems are online. I'm ready to assist. What can I do for you today?
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Voice Visualizer -->
+      <div class="voice-visualizer" id="voiceViz">
+        <div class="viz-bar"></div><div class="viz-bar"></div><div class="viz-bar"></div>
+        <div class="viz-bar"></div><div class="viz-bar"></div><div class="viz-bar"></div>
+        <div class="viz-bar"></div><div class="viz-bar"></div><div class="viz-bar"></div>
+      </div>
+
+      <!-- Input Area -->
+      <div class="input-area">
+        <button class="voice-btn" id="voiceBtn" title="Hold to speak">
+          <span class="mic-icon">🎙</span>
+          <span class="mic-text">VOICE</span>
+        </button>
+        <div class="input-wrapper">
+          <textarea
+            id="userInput"
+            placeholder="Speak to FRIDAY or type your message here, Sir..."
+            rows="1"
+            autocomplete="off"
+          ></textarea>
+        </div>
+        <button class="send-btn" id="sendBtn">
+          <span>SEND</span>
+          <span class="send-arrow">▶</span>
+        </button>
+      </div>
+      <div class="input-hint">Press <kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> for newline · Click 🎙 for voice</div>
+    </section>
+  </main>
+
+  <!-- Config Modal -->
+  <div class="modal-overlay" id="configModal">
+    <div class="modal">
+      <div class="modal-header">⚙ BACKEND CONFIGURATION</div>
+      <p class="modal-desc">Enter the URL of your deployed Friday backend to connect.</p>
+      <label>Backend API URL</label>
+      <input type="text" id="backendUrl" placeholder="https://friday-ai-backend.onrender.com" />
+      <div class="modal-actions">
+        <button class="modal-save" id="modalSave">CONNECT</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
