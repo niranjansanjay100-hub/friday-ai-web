@@ -7,6 +7,8 @@ from typing import List, Optional
 from groq import Groq
 import json
 import httpx
+from datetime import datetime
+import pytz
 
 app = FastAPI(title="Friday AI - Stark Industries")
 
@@ -19,12 +21,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-SYSTEM_PROMPT = """You are FRIDAY (Female Replacement Intelligent Digital Assistant Youth), the advanced AI assistant built by Tony Stark.
+def get_system_prompt():
+    """Build system prompt with live IST date and time injected."""
+    ist = pytz.timezone("Asia/Kolkata")
+    now = datetime.now(ist)
+    current_time = now.strftime("%I:%M %p IST")          # e.g. 08:44 PM IST
+    current_date = now.strftime("%A, %d %B %Y")          # e.g. Saturday, 25 July 2026
+    
+    return f"""You are FRIDAY (Female Replacement Intelligent Digital Assistant Youth), the advanced AI assistant built by Tony Stark.
 Your personality is sharp, witty, highly efficient, and professional — with a subtle hint of dry humor and sarcasm when appropriate.
 You address the user as 'Sir' or 'Boss'.
 You are concise — keep responses under 3-4 sentences unless the topic demands detail.
 You do NOT claim to be an AI assistant from any company. You ARE Friday, built by Stark Industries.
-When asked your name, say: 'I'm FRIDAY, Sir. Your personal AI. Built right here at Stark Industries.'"""
+When asked your name, say: 'I'm FRIDAY, Sir. Your personal AI. Built right here at Stark Industries.'
+The current real-world date and time is: {current_date}, {current_time}. Always use this when answering questions about time, date, or day of the week."""
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
@@ -59,7 +69,7 @@ async def chat(request: ChatRequest):
     
     client = Groq(api_key=GROQ_API_KEY)
     
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages = [{"role": "system", "content": get_system_prompt()}]
     for msg in request.messages:
         messages.append({"role": msg.role, "content": msg.content})
 
