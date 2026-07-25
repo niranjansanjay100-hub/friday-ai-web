@@ -115,6 +115,6 @@ async def generate_speech(request: TTSRequest):
         response = await client.post(url, json=data, headers=headers, timeout=20.0)
         if response.status_code != 200:
             print("ElevenLabs Error:", response.text)
-            raise HTTPException(status_code=response.status_code, detail="TTS Backend failed")
+            raise HTTPException(status_code=response.status_code, detail=f"ElevenLabs error: {response.text}")
             
         return Response(content=response.content, media_type="audio/mpeg")
