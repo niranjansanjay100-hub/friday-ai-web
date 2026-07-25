@@ -3,18 +3,20 @@
 // =============================================
 
 // --- CONFIG ---
-const DEFAULT_BACKEND = ""; // will prompt user
-let BACKEND_URL = localStorage.getItem("friday_backend_url") || "";
+const DEFAULT_BACKEND = "https://friday-ai-backend.onrender.com"; // live backend
+let BACKEND_URL = localStorage.getItem("friday_backend_url") || DEFAULT_BACKEND;
 
 // --- STATE ---
 let conversationHistory = [];
 let isListening = false;
 let isSpeaking = false;
 let messageCount = 0;
-let synth = window.speechSynthesis; // Keep as fallback
+let synth = window.speechSynthesis; // fallback
 let recognition = null;
-let audioQueue = [];
+let audioQueue = [];       // stores ArrayBuffers
 let isPlayingAudio = false;
+let audioCtx = null;       // Web Audio API context
+let audioUnlocked = false;
 
 // --- DOM REFS ---
 const chatMessages = document.getElementById("chatMessages");
@@ -32,17 +34,31 @@ const configModal = document.getElementById("configModal");
 const backendUrlInput = document.getElementById("backendUrl");
 const modalSave = document.getElementById("modalSave");
 
+// --- AUDIO UNLOCK (must happen inside a user gesture click handler) ---
+function unlockAudio() {
+  if (audioUnlocked) return;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Play 1 frame of silence to satisfy browser autoplay policy
+    const buf = audioCtx.createBuffer(1, 1, 22050);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    src.connect(audioCtx.destination);
+    src.start(0);
+    audioUnlocked = true;
+    console.log("Audio unlocked ✅");
+  } catch(e) {
+    console.warn("Could not create AudioContext:", e);
+  }
+}
+
 // --- INIT ---
 window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("bootTime").textContent = getTime();
   
-  if (!BACKEND_URL) {
-    configModal.classList.remove("hidden");
-    if (backendUrlInput) backendUrlInput.value = "";
-  } else {
-    configModal.classList.add("hidden");
-    checkBackendHealth();
-  }
+  // Backend URL is pre-configured — hide modal and go directly online
+  configModal.classList.add("hidden");
+  checkBackendHealth();
 
   setupSpeechRecognition();
   setupEventListeners();
@@ -114,6 +130,7 @@ function escapeHtml(text) {
 
 // --- SEND MESSAGE ---
 async function sendMessage() {
+  unlockAudio(); // CRITICAL: unlock audio inside the synchronous click handler
   const text = userInput.value.trim();
   if (!text || sendBtn.disabled) return;
   if (!BACKEND_URL) { configModal.classList.remove("hidden"); return; }
@@ -202,59 +219,62 @@ async function sendMessage() {
 // --- SPEECH SYNTHESIS (TTS) ---
 async function speak(text) {
   if (!text.trim()) return;
+  if (!audioUnlocked) { fallbackSpeak(text); return; } // Not unlocked yet, use browser
   
   try {
-     const res = await fetch(BACKEND_URL + "/tts", {
-         method: "POST",
-         headers: { "Content-Type": "application/json" },
-         body: JSON.stringify({ text: text })
-     });
-     
-     if (res.ok) {
-         const blob = await res.blob();
-         const audioUrl = URL.createObjectURL(blob);
-         audioQueue.push(audioUrl);
-         playNextAudio();
-     } else {
-         throw new Error("TTS failed");
-     }
+    const res = await fetch(BACKEND_URL + "/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text })
+    });
+    
+    if (res.ok) {
+      const arrayBuffer = await res.arrayBuffer();
+      audioQueue.push(arrayBuffer);
+      playNextAudio();
+    } else {
+      throw new Error("TTS HTTP " + res.status);
+    }
   } catch (err) {
-      console.warn("ElevenLabs TTS failed, falling back to browser voice", err);
-      fallbackSpeak(text);
+    console.warn("ElevenLabs TTS failed, falling back to browser voice:", err.message);
+    fallbackSpeak(text);
   }
 }
 
 async function playNextAudio() {
-    if (audioQueue.length === 0 || isPlayingAudio) return;
+  if (audioQueue.length === 0 || isPlayingAudio || !audioCtx) return;
+  
+  isPlayingAudio = true;
+  const arrayBuffer = audioQueue.shift();
+  voiceViz.classList.add("active");
+  
+  try {
+    // Resume context in case it was suspended
+    if (audioCtx.state === "suspended") await audioCtx.resume();
     
-    isPlayingAudio = true;
-    const url = audioQueue.shift();
-    const audio = new Audio(url);
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    const source = audioCtx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(audioCtx.destination);
     
-    // Visualizer active while playing
-    voiceViz.classList.add("active");
-    
-    audio.onended = () => {
-        isPlayingAudio = false;
-        voiceViz.classList.remove("active");
-        playNextAudio();
+    source.onended = () => {
+      isPlayingAudio = false;
+      voiceViz.classList.remove("active");
+      playNextAudio(); // play next sentence
     };
     
-    audio.onerror = () => {
-        isPlayingAudio = false;
-        voiceViz.classList.remove("active");
-        playNextAudio();
-    };
-    
-    await audio.play().catch(e => {
-        console.error("Audio playback prevented:", e);
-        isPlayingAudio = false;
-        playNextAudio();
-    });
+    source.start(0);
+  } catch (e) {
+    console.error("AudioContext playback error:", e);
+    isPlayingAudio = false;
+    voiceViz.classList.remove("active");
+    playNextAudio();
+  }
 }
 
 function fallbackSpeak(text) {
   if (!synth) return;
+  synth.cancel();
   const utter = new SpeechSynthesisUtterance(text);
   const voices = synth.getVoices();
   const preferred = voices.find(v =>
@@ -263,6 +283,8 @@ function fallbackSpeak(text) {
   );
   if (preferred) utter.voice = preferred;
   utter.rate = 1.05;
+  utter.pitch = 1.0;
+  utter.volume = 1.0;
   synth.speak(utter);
 }
 
@@ -325,6 +347,7 @@ function setupEventListeners() {
   userInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
+      unlockAudio(); // unlock if user submits via keyboard
       sendMessage();
     }
   });
