@@ -3,8 +3,8 @@
 // =============================================
 
 // --- CONFIG ---
-const DEFAULT_BACKEND = ""; // will prompt user
-let BACKEND_URL = localStorage.getItem("friday_backend_url") || "";
+const DEFAULT_BACKEND = "https://friday-ai-backend.onrender.com"; // live backend
+let BACKEND_URL = localStorage.getItem("friday_backend_url") || DEFAULT_BACKEND;
 
 // --- STATE ---
 let conversationHistory = [];
@@ -56,13 +56,9 @@ function unlockAudio() {
 window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("bootTime").textContent = getTime();
   
-  if (!BACKEND_URL) {
-    configModal.classList.remove("hidden");
-    if (backendUrlInput) backendUrlInput.value = "";
-  } else {
-    configModal.classList.add("hidden");
-    checkBackendHealth();
-  }
+  // Backend URL is pre-configured — hide modal and go directly online
+  configModal.classList.add("hidden");
+  checkBackendHealth();
 
   setupSpeechRecognition();
   setupEventListeners();
